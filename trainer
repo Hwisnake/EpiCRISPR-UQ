@@ -1,0 +1,43 @@
+import tensorflow as tf
+from keras.callbacks import ModelCheckpoint
+
+class ModelTrainer:
+    def __init__(self, model):
+        self.model = model
+        self.callbacks = [
+            tf.keras.callbacks.EarlyStopping(
+                monitor='val_loss',
+                patience=5,
+                restore_best_weights=True
+            ),
+            ModelCheckpoint(
+                'best_model.h5',
+                monitor='val_loss',
+                save_best_only=True
+            )
+        ]
+
+    def train(self, X, y):
+        print(f"Training model on {len(X)} sequences")
+        print(f"Input shape: {X.shape}")
+        print(f"Output shape: {y.shape}")
+        
+        history = self.model.train(
+            X=X, 
+            y=y,
+            epochs=50,
+            batch_size=32,
+            validation_split=0.2,
+            callbacks=self.callbacks,
+            verbose=1
+        )
+        
+        print("Training completed!")
+        return history
+    def evaluate(self, X, y):
+        print(f"Evaluating model on {len(X)} sequences")
+        print(f"Input shape: {X.shape}")
+        print(f"Output shape: {y.shape}")
+
+        loss, accuracy = self.model.evaluate(X, y, verbose=0)
+        print(f"Loss: {loss:.4f}, Accuracy: {accuracy:.4f}")
