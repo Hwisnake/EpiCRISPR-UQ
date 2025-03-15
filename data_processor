@@ -1,1 +1,65 @@
 
+import numpy as np
+import pandas as pd
+from tqdm import tqdm
+from sklearn.preprocessing import StandardScaler
+
+class DataProcessor:
+    def __init__(self, sequence_length=40):
+        self.sequence_length = sequence_length
+        self.nucleotides = {
+            'A': [1,0,0,0],
+            'T': [0,1,0,0],
+            'G': [0,0,1,0],
+            'C': [0,0,0,1]
+        }
+        self.scaler = StandardScaler()
+
+    def encode_sequence(self, sequence):
+        encoded = np.zeros((self.sequence_length, 4))
+        for i, nuc in enumerate(str(sequence)[:self.sequence_length]):
+            encoded[i] = self.nucleotides.get(nuc, [0,0,0,0])
+        return encoded
+
+    def process(self, df):
+        print(f"\nProcessing {len(df):,} sequences")
+        # Remove header row and reset index
+        df = df[df['Unnamed: 16'] != 'Class label'].reset_index(drop=True)
+        
+        sequences = df['Unnamed: 6'].values
+        batch_size = 10000
+        n_batches = len(sequences) // batch_size + 1
+        
+        encoded_sequences = []
+        for batch_idx in tqdm(range(n_batches), desc="Encoding sequences"):
+            start = batch_idx * batch_size
+            end = min((batch_idx + 1) * batch_size, len(sequences))
+            batch = sequences[start:end]
+            encoded_batch = np.stack([self.encode_sequence(seq) for seq in batch])
+            encoded_sequences.append(encoded_batch)
+        
+        X_seq = np.vstack(encoded_sequences)
+        
+        print("\nProcessing epigenetic features...")
+        epi_columns = [
+            'Unnamed: 8',   # TSS primary 5'
+            'Unnamed: 9',   # TSS primary 3'
+            'Unnamed: 10',  # TSS secondary 5'
+            'Unnamed: 11',  # TSS secondary 3'
+            'Unnamed: 12',  # ATAC values
+            'Unnamed: 13',  # methylation values
+            'Unnamed: 14'   # RNA values
+        ]
+        
+        # Convert epigenetic features to numeric, handling any non-numeric values
+        epi_features = df[epi_columns].replace({'': np.nan, ' ': np.nan}).apply(pd.to_numeric, errors='coerce').fillna(0).values
+        X_epi = self.scaler.fit_transform(epi_features)
+        
+        print("Combining features...")
+        X = np.concatenate([X_seq.reshape(len(sequences), -1), X_epi], axis=1)
+        
+        # Convert labels to numeric, handling any non-numeric values
+        y = pd.to_numeric(df['Unnamed: 16'], errors='coerce').fillna(0).values
+        
+        print(f"Final dataset shape: {X.shape}")
+        return X, y
