@@ -1,0 +1,39 @@
+import tensorflow as tf
+from keras.models import Sequential
+from keras.layers import Dense, Dropout
+
+class EpiCRISPR_UQ:
+    def __init__(self, sequence_length=40, n_epigenetic_features=7):
+        self.sequence_length = sequence_length
+        self.n_epigenetic_features = n_epigenetic_features
+        self.model = self._build_sequential_model()
+        
+    def _build_sequential_model(self):
+        model = Sequential([
+            Dense(128, activation='relu', input_shape=(167,)),
+            Dropout(0.3),
+            Dense(64, activation='relu'),
+            Dropout(0.3),
+            Dense(32, activation='relu'),
+            Dense(1, activation='sigmoid')
+        ])
+        
+        model.compile(
+            optimizer='adam',
+            loss='binary_crossentropy',
+            metrics=['accuracy']
+        )
+        return model
+    
+    def train(self, X, y, **kwargs):
+        return self.model.fit(X, y, **kwargs)
+    
+    def predict(self, X):
+        return self.model.predict(X)
+    
+    def get_uncertainties(self, X, n_samples=10):
+        predictions = []
+        for _ in range(n_samples):
+            pred = self.model(X, training=True)
+            predictions.append(pred)
+        return tf.math.reduce_std(predictions, axis=0)
