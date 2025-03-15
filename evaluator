@@ -1,0 +1,65 @@
+import numpy as np
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score, roc_curve
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+plt.style.use('bmh')
+sns.set_context("paper", font_scale=1.5)
+
+class ModelEvaluator:
+    def __init__(self, model):
+        self.model = model
+
+    def evaluate(self, X_test, y_test, batch_size=1000):
+        y_pred = self.model.predict(X_test)
+        y_pred_binary = (y_pred > 0.5).astype(int)
+        uncertainties = self.model.get_uncertainties(X_test)
+        
+        # Calculate metrics
+        metrics = {
+            'accuracy': accuracy_score(y_test, y_pred_binary),
+            'precision': precision_score(y_test, y_pred_binary),
+            'recall': recall_score(y_test, y_pred_binary),
+            'f1': f1_score(y_test, y_pred_binary),
+            'auc_roc': roc_auc_score(y_test, y_pred)
+        }
+        
+        # Generate enhanced visualizations
+        self.plot_distributions(y_pred, uncertainties, batch_size)
+        self.plot_performance_curve(y_test, y_pred)
+        
+        return metrics
+
+    def plot_distributions(self, y_pred, uncertainties, batch_size):
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
+        
+        # Enhanced prediction distribution plot
+        sns.histplot(data=y_pred[:batch_size], ax=ax1, bins=30)
+        ax1.set_title('EpiCRISPR-UQ Prediction Distribution\nGuide RNA Efficiency Scores', fontsize=14, pad=20)
+        ax1.set_xlabel('Predicted Efficiency Values', fontsize=12)
+        ax1.set_ylabel('Frequency', fontsize=12)
+        
+        # Enhanced uncertainty distribution plot
+        sns.histplot(data=uncertainties[:batch_size], ax=ax2, bins=30)
+        ax2.set_title('Model Uncertainty Distribution\nConfidence Analysis', fontsize=14, pad=20)
+        ax2.set_xlabel('Uncertainty Values', fontsize=12)
+        ax2.set_ylabel('Frequency', fontsize=12)
+        
+        plt.tight_layout()
+        plt.savefig('results/distribution_analysis.png', dpi=300, bbox_inches='tight')
+        plt.close()
+
+    def plot_performance_curve(self, y_test, y_pred):
+        fpr, tpr, _ = roc_curve(y_test, y_pred)
+        plt.figure(figsize=(10, 8))
+        plt.plot(fpr, tpr, color='darkorange', lw=3, 
+                label=f'EpiCRISPR-UQ (AUC = {roc_auc_score(y_test, y_pred):.3f})')
+        plt.plot([0, 1], [0, 1], 'k--', lw=2, label='Random Classification')
+        plt.xlabel('False Positive Rate (1 - Specificity)', fontsize=14)
+        plt.ylabel('True Positive Rate (Sensitivity)', fontsize=14)
+        plt.title('EpiCRISPR-UQ: Guide RNA Prediction Performance\nReceiver Operating Characteristic Analysis', 
+                 fontsize=16, pad=20)
+        plt.legend(loc='lower right', fontsize=12)
+        plt.grid(True, alpha=0.3)
+        plt.savefig('results/roc_analysis.png', dpi=300, bbox_inches='tight')
+        plt.close()
